@@ -1,0 +1,1566 @@
+[
+  {
+    "patient_id": "BraTS20_Training_001",
+    "modality": "T1",
+    "image_path": "/Users/kp/Documents/BRAINIAC/BrainIAC/Dataset/BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/BraTS20_Training_001/BraTS20_Training_001_t1.nii",
+    "label": 0,
+    "split_source": "training",
+    "source": "/Users/kp/Documents/BRAINIAC/archive.zip!BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/BraTS20_Training_001/BraTS20_Training_001_t1.nii",
+    "original_shape": [
+      240,
+      240,
+      155
+    ],
+    "original_spacing": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "original_affine": [
+      [
+        -1.0,
+        -0.0,
+        -0.0,
+        0.0
+      ],
+      [
+        -0.0,
+        -1.0,
+        -0.0,
+        239.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "original_affine_diag": [
+      -1.0,
+      -1.0,
+      1.0
+    ],
+    "original_orientation": "LPS",
+    "original_dtype": "int16",
+    "original_min": 0.0,
+    "original_max": 678.0,
+    "original_mean": 53.287132616487455,
+    "original_std": 130.78494762592115,
+    "original_nonzero_mean": 354.2727188106204,
+    "original_nonzero_std": 84.18702815342132,
+    "shape_after_load": [
+      240,
+      240,
+      155
+    ],
+    "shape_after_channel": [
+      1,
+      240,
+      240,
+      155
+    ],
+    "shape_after_resize": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "shape_after_normalize": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "final_tensor_shape": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "final_tensor_dtype": "float32",
+    "final_tensor_min": -3.349398612976074,
+    "final_tensor_max": 2.3290677070617676,
+    "final_tensor_mean": -1.7389538697898388e-08,
+    "final_tensor_std": 0.39577338099479675,
+    "load_meta": {
+      "step": "load",
+      "type": "MetaTensor",
+      "shape": [
+        240,
+        240,
+        155
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 678.0,
+      "mean": 53.28711700439453,
+      "std": 130.7854766845703,
+      "nonzero_mean": 354.27276611328125,
+      "nonzero_std": 84.18704223632812,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0,
+          239.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "channel_meta": {
+      "step": "channel",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        240,
+        240,
+        155
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 678.0,
+      "mean": 53.28711700439453,
+      "std": 130.7854766845703,
+      "nonzero_mean": 354.27276611328125,
+      "nonzero_std": 84.18704223632812,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0,
+          239.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "resize_meta": {
+      "step": "resize",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 576.5205688476562,
+      "mean": 53.28141403198242,
+      "std": 129.9939727783203,
+      "nonzero_mean": 340.15948486328125,
+      "nonzero_std": 101.48313903808594,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "normalize_meta": {
+      "step": "normalize",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": -3.349398612976074,
+      "max": 2.3290677070617676,
+      "mean": -1.7389538697898388e-08,
+      "std": 0.39577338099479675,
+      "nonzero_mean": -1.1186827464371163e-07,
+      "nonzero_std": 1.0,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "tensor_meta": {
+      "step": "tensor",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": -3.349398612976074,
+      "max": 2.3290677070617676,
+      "mean": -1.7389538697898388e-08,
+      "std": 0.39577338099479675,
+      "nonzero_mean": -1.1186827464371163e-07,
+      "nonzero_std": 1.0,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "inferred_spacing_after_resize": [
+      2.5,
+      2.5,
+      1.6145833333333333
+    ],
+    "notes": "Resize updates MetaTensor affine scaling but leaves pixdim/spatial_shape metadata at original values."
+  },
+  {
+    "patient_id": "BraTS20_Training_001",
+    "modality": "T2",
+    "image_path": "/Users/kp/Documents/BRAINIAC/BrainIAC/Dataset/BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/BraTS20_Training_001/BraTS20_Training_001_t2.nii",
+    "label": 1,
+    "split_source": "training",
+    "source": "/Users/kp/Documents/BRAINIAC/archive.zip!BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/BraTS20_Training_001/BraTS20_Training_001_t2.nii",
+    "original_shape": [
+      240,
+      240,
+      155
+    ],
+    "original_spacing": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "original_affine": [
+      [
+        -1.0,
+        -0.0,
+        -0.0,
+        0.0
+      ],
+      [
+        -0.0,
+        -1.0,
+        -0.0,
+        239.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "original_affine_diag": [
+      -1.0,
+      -1.0,
+      1.0
+    ],
+    "original_orientation": "LPS",
+    "original_dtype": "int16",
+    "original_min": 0.0,
+    "original_max": 376.0,
+    "original_mean": 17.25143604390681,
+    "original_std": 44.97919107447554,
+    "original_nonzero_mean": 114.69397677388608,
+    "original_nonzero_std": 47.691026819005465,
+    "shape_after_load": [
+      240,
+      240,
+      155
+    ],
+    "shape_after_channel": [
+      1,
+      240,
+      240,
+      155
+    ],
+    "shape_after_resize": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "shape_after_normalize": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "final_tensor_shape": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "final_tensor_dtype": "float32",
+    "final_tensor_min": -2.2066097259521484,
+    "final_tensor_max": 4.71826696395874,
+    "final_tensor_mean": 1.1604613270321806e-08,
+    "final_tensor_std": 0.39577335119247437,
+    "load_meta": {
+      "step": "load",
+      "type": "MetaTensor",
+      "shape": [
+        240,
+        240,
+        155
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 376.0,
+      "mean": 17.251436233520508,
+      "std": 44.978878021240234,
+      "nonzero_mean": 114.6939468383789,
+      "nonzero_std": 47.69103240966797,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0,
+          239.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "channel_meta": {
+      "step": "channel",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        240,
+        240,
+        155
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 376.0,
+      "mean": 17.251436233520508,
+      "std": 44.978878021240234,
+      "nonzero_mean": 114.6939468383789,
+      "nonzero_std": 47.69103240966797,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0,
+          239.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "resize_meta": {
+      "step": "resize",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 345.529296875,
+      "mean": 17.25174903869629,
+      "std": 44.63542938232422,
+      "nonzero_mean": 110.13871765136719,
+      "nonzero_std": 49.88920211791992,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "normalize_meta": {
+      "step": "normalize",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": -2.2066097259521484,
+      "max": 4.71826696395874,
+      "mean": 1.1604613270321806e-08,
+      "std": 0.39577335119247437,
+      "nonzero_mean": 7.399161461307813e-08,
+      "nonzero_std": 1.0,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "tensor_meta": {
+      "step": "tensor",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": -2.2066097259521484,
+      "max": 4.71826696395874,
+      "mean": 1.1604613270321806e-08,
+      "std": 0.39577335119247437,
+      "nonzero_mean": 7.399161461307813e-08,
+      "nonzero_std": 1.0,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "inferred_spacing_after_resize": [
+      2.5,
+      2.5,
+      1.6145833333333333
+    ],
+    "notes": "Resize updates MetaTensor affine scaling but leaves pixdim/spatial_shape metadata at original values."
+  },
+  {
+    "patient_id": "BraTS20_Training_001",
+    "modality": "FLAIR",
+    "image_path": "/Users/kp/Documents/BRAINIAC/BrainIAC/Dataset/BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/BraTS20_Training_001/BraTS20_Training_001_flair.nii",
+    "label": 2,
+    "split_source": "training",
+    "source": "/Users/kp/Documents/BRAINIAC/archive.zip!BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/BraTS20_Training_001/BraTS20_Training_001_flair.nii",
+    "original_shape": [
+      240,
+      240,
+      155
+    ],
+    "original_spacing": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "original_affine": [
+      [
+        -1.0,
+        -0.0,
+        -0.0,
+        0.0
+      ],
+      [
+        -0.0,
+        -1.0,
+        -0.0,
+        239.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "original_affine_diag": [
+      -1.0,
+      -1.0,
+      1.0
+    ],
+    "original_orientation": "LPS",
+    "original_dtype": "int16",
+    "original_min": 0.0,
+    "original_max": 625.0,
+    "original_mean": 26.021915994623654,
+    "original_std": 66.76537214744386,
+    "original_nonzero_mean": 173.0033964189041,
+    "original_nonzero_std": 64.86593938736874,
+    "shape_after_load": [
+      240,
+      240,
+      155
+    ],
+    "shape_after_channel": [
+      1,
+      240,
+      240,
+      155
+    ],
+    "shape_after_resize": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "shape_after_normalize": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "final_tensor_shape": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "final_tensor_dtype": "float32",
+    "final_tensor_min": -2.3973913192749023,
+    "final_tensor_max": 3.895113706588745,
+    "final_tensor_mean": 9.3779006782313e-10,
+    "final_tensor_std": 0.3957732915878296,
+    "load_meta": {
+      "step": "load",
+      "type": "MetaTensor",
+      "shape": [
+        240,
+        240,
+        155
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 625.0,
+      "mean": 26.021913528442383,
+      "std": 66.76512145996094,
+      "nonzero_mean": 173.00338745117188,
+      "nonzero_std": 64.8659439086914,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0,
+          239.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "channel_meta": {
+      "step": "channel",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        240,
+        240,
+        155
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 625.0,
+      "mean": 26.021913528442383,
+      "std": 66.76512145996094,
+      "nonzero_mean": 173.00338745117188,
+      "nonzero_std": 64.8659439086914,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0,
+          239.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "resize_meta": {
+      "step": "resize",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 435.755859375,
+      "mean": 26.018033981323242,
+      "std": 66.29827880859375,
+      "nonzero_mean": 166.10452270507812,
+      "nonzero_std": 69.22810363769531,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "normalize_meta": {
+      "step": "normalize",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": -2.3973913192749023,
+      "max": 3.895113706588745,
+      "mean": 9.3779006782313e-10,
+      "std": 0.3957732915878296,
+      "nonzero_mean": 3.5234102302439396e-09,
+      "nonzero_std": 1.0,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "tensor_meta": {
+      "step": "tensor",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": -2.3973913192749023,
+      "max": 3.895113706588745,
+      "mean": 9.3779006782313e-10,
+      "std": 0.3957732915878296,
+      "nonzero_mean": 3.5234102302439396e-09,
+      "nonzero_std": 1.0,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "inferred_spacing_after_resize": [
+      2.5,
+      2.5,
+      1.6145833333333333
+    ],
+    "notes": "Resize updates MetaTensor affine scaling but leaves pixdim/spatial_shape metadata at original values."
+  },
+  {
+    "patient_id": "BraTS20_Training_001",
+    "modality": "T1CE",
+    "image_path": "/Users/kp/Documents/BRAINIAC/BrainIAC/Dataset/BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/BraTS20_Training_001/BraTS20_Training_001_t1ce.nii",
+    "label": 3,
+    "split_source": "training",
+    "source": "/Users/kp/Documents/BRAINIAC/archive.zip!BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/BraTS20_Training_001/BraTS20_Training_001_t1ce.nii",
+    "original_shape": [
+      240,
+      240,
+      155
+    ],
+    "original_spacing": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "original_affine": [
+      [
+        -1.0,
+        -0.0,
+        -0.0,
+        0.0
+      ],
+      [
+        -0.0,
+        -1.0,
+        -0.0,
+        239.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "original_affine_diag": [
+      -1.0,
+      -1.0,
+      1.0
+    ],
+    "original_orientation": "LPS",
+    "original_dtype": "int16",
+    "original_min": 0.0,
+    "original_max": 1845.0,
+    "original_mean": 62.771636872759856,
+    "original_std": 155.0791701560106,
+    "original_nonzero_mean": 417.3292381700592,
+    "original_nonzero_std": 109.19300329952839,
+    "shape_after_load": [
+      240,
+      240,
+      155
+    ],
+    "shape_after_channel": [
+      1,
+      240,
+      240,
+      155
+    ],
+    "shape_after_resize": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "shape_after_normalize": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "final_tensor_shape": [
+      1,
+      96,
+      96,
+      96
+    ],
+    "final_tensor_dtype": "float32",
+    "final_tensor_min": -3.2842202186584473,
+    "final_tensor_max": 11.154789924621582,
+    "final_tensor_mean": 1.5516653517622103e-09,
+    "final_tensor_std": 0.39577338099479675,
+    "load_meta": {
+      "step": "load",
+      "type": "MetaTensor",
+      "shape": [
+        240,
+        240,
+        155
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 1845.0,
+      "mean": 62.77162170410156,
+      "std": 155.0789031982422,
+      "nonzero_mean": 417.3291320800781,
+      "nonzero_std": 109.1929931640625,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0,
+          239.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "channel_meta": {
+      "step": "channel",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        240,
+        240,
+        155
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 1845.0,
+      "mean": 62.77162170410156,
+      "std": 155.0789031982422,
+      "nonzero_mean": 417.3291320800781,
+      "nonzero_std": 109.1929931640625,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0,
+          239.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "resize_meta": {
+      "step": "resize",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": 0.0,
+      "max": 1760.19140625,
+      "mean": 62.76797866821289,
+      "std": 153.42523193359375,
+      "nonzero_mean": 400.7236022949219,
+      "nonzero_std": 121.87300109863281,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "normalize_meta": {
+      "step": "normalize",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": -3.2842202186584473,
+      "max": 11.154789924621582,
+      "mean": 1.5516653517622103e-09,
+      "std": 0.39577338099479675,
+      "nonzero_mean": 9.689378188681985e-09,
+      "nonzero_std": 1.0,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "tensor_meta": {
+      "step": "tensor",
+      "type": "MetaTensor",
+      "shape": [
+        1,
+        96,
+        96,
+        96
+      ],
+      "dtype": "float32",
+      "min": -3.2842202186584473,
+      "max": 11.154789924621582,
+      "mean": 1.5516653517622103e-09,
+      "std": 0.39577338099479675,
+      "nonzero_mean": 9.689378188681985e-09,
+      "nonzero_std": 1.0,
+      "pixdim": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spatial_shape": [
+        240,
+        240,
+        155
+      ],
+      "space": "RAS",
+      "affine": [
+        [
+          -2.5,
+          0.0,
+          0.0,
+          -0.75
+        ],
+        [
+          0.0,
+          -2.5,
+          0.0,
+          238.25
+        ],
+        [
+          0.0,
+          0.0,
+          1.6145833333333333,
+          0.30729166666666663
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "inferred_spacing_after_resize": [
+      2.5,
+      2.5,
+      1.6145833333333333
+    ],
+    "notes": "Resize updates MetaTensor affine scaling but leaves pixdim/spatial_shape metadata at original values."
+  }
+]

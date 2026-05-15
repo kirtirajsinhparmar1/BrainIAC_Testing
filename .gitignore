@@ -1,0 +1,14 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local BraTS data and large transfer artifacts
+archive/
+archive.zip
+Dataset/
+brainiac_colab_runtime_bundle.zip
+
+# Large local checkpoints
+src/checkpoint/
+src/checkpoints/

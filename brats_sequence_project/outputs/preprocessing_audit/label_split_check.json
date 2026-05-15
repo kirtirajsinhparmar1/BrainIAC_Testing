@@ -1,0 +1,74 @@
+{
+  "summaries": {
+    "train": {
+      "split": "train",
+      "rows": 1180,
+      "patients": 295,
+      "label_counts": {
+        "0": 295,
+        "1": 295,
+        "2": 295,
+        "3": 295
+      },
+      "modality_counts": {
+        "FLAIR": 295,
+        "T1": 295,
+        "T1CE": 295,
+        "T2": 295
+      },
+      "bad_suffix_rows": [],
+      "seg_rows": [],
+      "incomplete_patients": []
+    },
+    "val": {
+      "split": "val",
+      "rows": 296,
+      "patients": 74,
+      "label_counts": {
+        "0": 74,
+        "1": 74,
+        "2": 74,
+        "3": 74
+      },
+      "modality_counts": {
+        "FLAIR": 74,
+        "T1": 74,
+        "T1CE": 74,
+        "T2": 74
+      },
+      "bad_suffix_rows": [],
+      "seg_rows": [],
+      "incomplete_patients": []
+    },
+    "test": {
+      "split": "test",
+      "rows": 500,
+      "patients": 125,
+      "label_counts": {
+        "0": 125,
+        "1": 125,
+        "2": 125,
+        "3": 125
+      },
+      "modality_counts": {
+        "FLAIR": 125,
+        "T1": 125,
+        "T1CE": 125,
+        "T2": 125
+      },
+      "bad_suffix_rows": [],
+      "seg_rows": [],
+      "incomplete_patients": []
+    }
+  },
+  "patient_overlap": {
+    "train_val": 0,
+    "train_test": 0,
+    "val_test": 0
+  },
+  "patient_overlap_examples": {
+    "train_val": [],
+    "train_test": [],
+    "val_test": []
+  }
+}

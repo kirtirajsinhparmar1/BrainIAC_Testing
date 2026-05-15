@@ -1,0 +1,223 @@
+"""Audit BrainIAC paper/repo expectations against the BraTS sequence pipeline."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = PROJECT_ROOT.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from utils.visual_debugging import ensure_dir  # noqa: E402
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo_root", type=Path, default=REPO_ROOT)
+    parser.add_argument("--output_dir", type=Path, default=PROJECT_ROOT / "outputs" / "visual_debug")
+    return parser.parse_args()
+
+
+def _read_text(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    return path.read_text(errors="replace")
+
+
+def _line_hits(path: Path, patterns: list[str], limit: int = 16) -> list[str]:
+    text = _read_text(path)
+    if not text:
+        return []
+
+    compiled = [re.compile(pattern, flags=re.IGNORECASE) for pattern in patterns]
+    hits: list[str] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        normalized = line.strip()
+        if not normalized:
+            continue
+        if any(pattern.search(normalized) for pattern in compiled):
+            hits.append(f"- `{path.name}:{line_number}` {normalized}")
+        if len(hits) >= limit:
+            break
+    return hits
+
+
+def _notebook_hits(path: Path, patterns: list[str], limit: int = 12) -> list[str]:
+    if not path.is_file():
+        return []
+
+    try:
+        payload = json.loads(path.read_text(errors="replace"))
+    except json.JSONDecodeError:
+        return _line_hits(path, patterns, limit=limit)
+
+    compiled = [re.compile(pattern, flags=re.IGNORECASE) for pattern in patterns]
+    hits: list[str] = []
+    for cell_index, cell in enumerate(payload.get("cells", []), start=1):
+        source = "".join(cell.get("source", []))
+        for line in source.splitlines():
+            normalized = line.strip()
+            if normalized and any(pattern.search(normalized) for pattern in compiled):
+                hits.append(f"- `quickstart.ipynb cell {cell_index}` {normalized}")
+                break
+        if len(hits) >= limit:
+            break
+    return hits
+
+
+def _status(path: Path) -> str:
+    return "found" if path.is_file() else "missing"
+
+
+def _format_hits(hits: list[str]) -> str:
+    if not hits:
+        return "- No matching local text found."
+    return "\n".join(hits)
+
+
+def build_report(repo_root: Path, output_dir: Path) -> str:
+    docs_path = repo_root / "docs" / "downstream_tasks" / "MR_sequence_classification.md"
+    runtime_dataset_path = repo_root / "src" / "dataset.py"
+    model_path = repo_root / "src" / "model.py"
+    quickstart_path = repo_root / "src" / "quickstart.ipynb"
+    preprocessing_path = repo_root / "src" / "preprocessing" / "mri_preprocess_3d_simple.py"
+    brats_dataset_path = PROJECT_ROOT / "datasets" / "brats_sequence_dataset.py"
+    brats_audit_path = PROJECT_ROOT / "PREPROCESSING_AUDIT_REPORT.md"
+    phase3_path = PROJECT_ROOT / "README_PHASE3.md"
+    phase4_path = PROJECT_ROOT / "README_PHASE4_PREPROCESSING_ABLATIONS.md"
+
+    inspected = [
+        docs_path,
+        runtime_dataset_path,
+        model_path,
+        quickstart_path,
+        preprocessing_path,
+        brats_dataset_path,
+        brats_audit_path,
+        phase3_path,
+        phase4_path,
+    ]
+
+    docs_hits = _line_hits(
+        docs_path,
+        ["single sequence", "output", "balanced accuracy", "96", "resize", "freeze", "linear probing"],
+        limit=22,
+    )
+    runtime_hits = [
+        *_line_hits(runtime_dataset_path, ["LoadImaged", "EnsureChannelFirstd", "Resized", "NormalizeIntensityd", "ToTensord"], limit=20),
+        *_line_hits(model_path, ["img_size", "in_channels", "hidden_size", "return x\\[:, 0\\]", "ViTBackboneNet"], limit=12),
+    ]
+    quickstart_hits = _notebook_hits(quickstart_path, ["preprocess", "NIfTI", "mri_preprocess", "Sequence", "BrainIAC"], limit=10)
+    preprocessing_hits = _line_hits(preprocessing_path, ["resampl", "N4", "skull", "HD-BET", "write", "output"], limit=14)
+    brats_hits = _line_hits(
+        brats_dataset_path,
+        [
+            "crop_pad_zscore",
+            "ResizeWithPadOrCropd",
+            "NormalizeIntensityd",
+            "Spacingd",
+            "SUPPORTED_PREPROCESSING_VARIANTS",
+            "validate_paths",
+        ],
+        limit=24,
+    )
+    brats_pipeline_hits = [
+        *_line_hits(phase3_path, ["frozen", "cached", "MLP", "no copied", "96"], limit=12),
+        *_line_hits(phase4_path, ["crop_pad_zscore", "cached", "frozen", "physical", "preprocessing"], limit=14),
+        *_line_hits(brats_audit_path, ["spacing", "resize", "crop", "frozen", "cached", "label"], limit=12),
+    ]
+
+    return f"""# BrainIAC Paper/Repo Alignment Audit
+
+Generated by `scripts/audit_brainiac_paper_repo_alignment.py`.
+
+## Files Inspected
+
+{chr(10).join(f"- `{path.relative_to(repo_root) if path.is_relative_to(repo_root) else path}`: {_status(path)}" for path in inspected)}
+
+## What BrainIAC Docs Say
+
+- The MR sequence task is documented as a single-MRI-input, four-class sequence classification task.
+- The output labels are `0: T1`, `1: T2`, `2: FLAIR`, `3: T1CE`.
+- The documented evaluation metric is balanced accuracy.
+- The documented image size is `96 x 96 x 96` voxels, with automatic resizing in the runtime pipeline.
+- The docs describe both fine-tuning and linear probing/frozen-backbone options.
+
+Evidence:
+
+{_format_hits(docs_hits)}
+
+## What BrainIAC Runtime Code Does
+
+- The runtime dataset transform loads NIfTI data with `LoadImaged`.
+- It creates an explicit channel dimension with `EnsureChannelFirstd`.
+- It resizes inputs to the model spatial size with `Resized`.
+- It applies nonzero channel-wise intensity normalization with `NormalizeIntensityd`.
+- It converts the transformed volume to a tensor with `ToTensord`.
+- The ViT backbone is configured for one input channel and `96 x 96 x 96` image tensors, returning the CLS-token feature representation.
+
+Evidence:
+
+{_format_hits(runtime_hits)}
+
+## What The Quickstart And Preprocessing Script Suggest
+
+- The notebook references preprocessing before downstream use, but the runtime dataset still performs the deterministic load/channel/resize/normalize/tensor steps.
+- The standalone preprocessing script performs heavier offline operations such as registration/resampling, N4 correction, skull stripping, and writing output NIfTI files.
+- Our visual debugging scripts do not call that offline preprocessing script and do not write derived NIfTI files.
+
+Evidence:
+
+{_format_hits([*quickstart_hits, *preprocessing_hits])}
+
+## What The BrainIAC Paper Says
+
+- The Nature Neuroscience paper presents BrainIAC as a general brain MRI foundation model trained with contrastive self-supervised learning.
+- It uses 3D brain MRI volumes and decomposes full volumes into randomly cropped, intensity-augmented patches for SimCLR-style training.
+- Downstream evaluation includes end-to-end fine-tuning, few-shot fine-tuning, and linear probing/frozen-feature settings.
+- Paper link for traceability: https://www.nature.com/articles/s41593-026-02202-6
+
+## What Our Current BraTS Pipeline Does
+
+- `crop_pad_zscore` uses centered crop/pad to produce `96 x 96 x 96` tensors while avoiding the geometric interpolation used by the resize variants.
+- The BraTS ablation path uses the frozen BrainIAC backbone to cache 768-dimensional features.
+- The classifier stage trains an MLP on cached features rather than fine-tuning the BrainIAC backbone.
+- The project intentionally avoids full preprocessed NIfTI copies in this runtime path.
+
+Evidence:
+
+{_format_hits([*brats_hits, *brats_pipeline_hits])}
+
+## Key Differences And Interpretation
+
+- Backbone update: BrainIAC downstream configs may fine-tune the model, while the current BraTS ablation freezes the backbone and trains only the classifier head on cached features.
+- Dataset scope: the paper and original repository cover broad multi-dataset brain MRI tasks, while this project is focused on BraTS2020 tumor cases and four BraTS sequence labels.
+- Geometry: the original runtime transform resizes to `96 x 96 x 96`; our best current variant uses crop/pad to preserve voxel spacing assumptions better for BraTS volumes.
+- Pretraining augmentations: BrainIAC pretraining used random crop and intensity augmentation, which is not identical to our deterministic centered crop/pad validation pipeline.
+- Offline preprocessing: the upstream repo includes a heavyweight NIfTI-writing preprocessing script, but the current BraTS runtime path visualizes data directly from the original image paths and does not create copied preprocessed NIfTI files.
+
+## Practical Recommendation
+
+Use the new visual debug plots to verify that `crop_pad_zscore` keeps enough brain/tumor context compared with `resize_zscore`. If the crop/pad views visibly clip anatomy for some patients, inspect those cases before treating the validation gain as purely model-related.
+
+Report saved under `{output_dir}`.
+"""
+
+
+def main() -> None:
+    args = parse_args()
+    repo_root = args.repo_root.expanduser().resolve()
+    output_dir = ensure_dir(args.output_dir.expanduser().resolve())
+    report = build_report(repo_root, output_dir)
+    output_path = output_dir / "brainiac_alignment_report.md"
+    output_path.write_text(report)
+    print(f"wrote: {output_path}")
+
+
+if __name__ == "__main__":
+    main()
