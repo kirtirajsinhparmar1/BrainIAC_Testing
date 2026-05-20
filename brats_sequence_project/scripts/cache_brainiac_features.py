@@ -19,7 +19,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from datasets import BraTSSequenceDataset, SUPPORTED_PREPROCESSING_VARIANTS
 
 
-LABEL_MAPPING = {"T1": 0, "T2": 1, "FLAIR": 2, "T1CE": 3}
+DEFAULT_MODALITY_TO_LABEL = {"T1": 0, "T2": 1, "FLAIR": 2, "T1CE": 3}
 
 
 def parse_args() -> argparse.Namespace:
@@ -83,6 +83,28 @@ def load_frozen_backbone(brainiac_src: Path, checkpoint_path: Path, device: torc
     return backbone
 
 
+def infer_label_metadata(labels: torch.Tensor, modalities: list[str]) -> dict[str, Any]:
+    """Infer task label metadata from cached CSV rows without assuming four classes."""
+    observed_labels = sorted({int(value) for value in labels.tolist()})
+    observed_modalities = {str(value).upper() for value in modalities}
+
+    if set(observed_labels) == {0, 1} and observed_modalities <= {"T1", "T2"}:
+        modality_to_label = {"T1": 0, "T2": 1}
+        label_mapping: dict[str, Any] = {"0": "T1", "1": "T2"}
+    else:
+        modality_to_label = dict(DEFAULT_MODALITY_TO_LABEL)
+        label_mapping = dict(DEFAULT_MODALITY_TO_LABEL)
+
+    label_to_modality = {str(label): modality for modality, label in modality_to_label.items()}
+    return {
+        "label_mapping": label_mapping,
+        "label_to_modality": label_to_modality,
+        "modality_to_label": modality_to_label,
+        "observed_labels": observed_labels,
+        "observed_modalities": sorted(observed_modalities),
+    }
+
+
 def main() -> None:
     args = parse_args()
     output_dir = args.output_dir.expanduser().resolve()
@@ -130,6 +152,7 @@ def main() -> None:
 
     features_tensor = torch.cat(features_list, dim=0)
     labels_tensor = torch.cat(labels_list, dim=0).long()
+    label_metadata = infer_label_metadata(labels_tensor, modalities)
     output_path = output_dir / f"features_{args.split_name}_{args.variant}.pt"
     torch.save(
         {
@@ -141,7 +164,9 @@ def main() -> None:
             "split_names": split_names,
             "variant": args.variant,
             "split_name": args.split_name,
-            "label_mapping": LABEL_MAPPING,
+            "label_mapping": label_metadata["label_mapping"],
+            "label_to_modality": label_metadata["label_to_modality"],
+            "modality_to_label": label_metadata["modality_to_label"],
             "source_csv": str(args.csv_path.expanduser().resolve()),
         },
         output_path,
@@ -155,7 +180,11 @@ def main() -> None:
         "feature_shape": list(features_tensor.shape),
         "label_shape": list(labels_tensor.shape),
         "feature_dtype": str(features_tensor.dtype),
-        "label_mapping": LABEL_MAPPING,
+        "label_mapping": label_metadata["label_mapping"],
+        "label_to_modality": label_metadata["label_to_modality"],
+        "modality_to_label": label_metadata["modality_to_label"],
+        "observed_labels": label_metadata["observed_labels"],
+        "observed_modalities": label_metadata["observed_modalities"],
     }
     summary_path = output_dir / f"features_{args.split_name}_{args.variant}.json"
     summary_path.write_text(json.dumps(summary, indent=2) + "\n")
