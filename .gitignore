@@ -12,3 +12,11 @@ brainiac_colab_runtime_bundle.zip
 # Large local checkpoints
 src/checkpoint/
 src/checkpoints/
+
+# General and fine-tuned checkpoints are local-only artifacts.
+checkpoints/*.ckpt
+results/**/*.ckpt
+
+# Experiment logs and generated fine-tuning outputs.
+wandb/
+brats_sequence_project/finetune/results/

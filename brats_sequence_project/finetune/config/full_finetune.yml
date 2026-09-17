@@ -1,0 +1,52 @@
+# Paper-reproduction configuration for BrainIAC end-to-end sequence classification.
+# The pretrained checkpoint is intentionally local-only and must be supplied at
+# checkpoints/BrainIAC.ckpt on the lab server.
+
+experiment:
+  name: brats2020_brainiac_full_finetune
+  seed: 42
+  fraction: 1.0
+  supported_fractions: [0.10, 0.20, 0.40, 0.60, 0.80, 1.00]
+  smoke_test:
+    epochs: 1
+    train_patients: 2
+    validation_patients: 2
+
+model:
+  checkpoint_path: "./checkpoints/BrainIAC.ckpt"
+  image_size: [96, 96, 96]
+  hidden_size: 768
+  num_classes: 4
+  dropout: 0.2
+  freeze_backbone: false
+
+data:
+  train_csv: "./brats_sequence_project/outputs/train.csv"
+  val_csv: "./brats_sequence_project/outputs/val.csv"
+  test_csv: "./brats_sequence_project/outputs/test.csv"
+  preprocessing: "official_runtime_resize_zscore"
+  batch_size: 16
+  validation_batch_size: 1
+  num_workers: 4
+  validation_num_workers: 1
+  pin_memory: false
+
+training:
+  epochs: 100
+  optimizer: "Adam"
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  # The released config contains momentum: 0.9, but Adam does not consume a
+  # momentum argument. It is therefore intentionally not passed to the optimizer.
+  scheduler: "ReduceLROnPlateau"
+  scheduler_mode: "max"
+  # These are PyTorch ReduceLROnPlateau defaults because the supplement names
+  # the scheduler but does not publish factor/patience values.
+  scheduler_factor: 0.1
+  scheduler_patience: 10
+  precision: "16-mixed"
+  checkpoint_metric: "val_balanced_accuracy"
+  checkpoint_mode: "max"
+
+output:
+  root_dir: "./brats_sequence_project/finetune/results"
