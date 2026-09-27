@@ -11,7 +11,9 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
+
+from aggregate_data_efficiency import aggregate_results, safe_plot_run_artifacts
 
 from finetune_common import (
     EXPECTED_TEST_SCANS,
@@ -47,6 +49,7 @@ def parse_args() -> argparse.Namespace:
     mode.add_argument("--prepare-only", action="store_true")
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--dry-run-matrix", action="store_true")
+    mode.add_argument("--run-matrix", action="store_true")
     mode.add_argument("--train-only", action="store_true")
     mode.add_argument("--evaluate-only", action="store_true")
     parser.add_argument(
@@ -214,6 +217,36 @@ def _command_text(command: list[str]) -> str:
     return shlex.join(command)
 
 
+def matrix_candidates(plan: Mapping[int, list[int]]) -> list[tuple[int, int]]:
+    """Return matrix candidates in configured patient-count/seed order."""
+
+    return [
+        (patient_count, seed)
+        for patient_count, seeds in plan.items()
+        for seed in seeds
+    ]
+
+
+def candidate_status(
+    config: Mapping[str, Any], patient_count: int, seed: int
+) -> tuple[str, float | None]:
+    """Classify a candidate using only resumable artifacts on disk."""
+
+    run_dir = run_directory(config, patient_count, seed)
+    metrics_path = run_dir / "test_evaluation" / "metrics.json"
+    if valid_metrics_file(metrics_path):
+        try:
+            metrics = _read_json(metrics_path)
+            return "COMPLETE", float(metrics["balanced_accuracy"])
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError, OSError):
+            pass
+    if (run_dir / "best_model.ckpt").is_file():
+        return "CHECKPOINT", None
+    if (run_dir / "subset_manifest.csv").is_file():
+        return "SUBSET", None
+    return "PENDING", None
+
+
 def _build_commands(
     config_path: Path,
     checkpoint_path: Path,
@@ -270,9 +303,26 @@ def run_one(
     train_only: bool = False,
     evaluate_only: bool = False,
     force: bool = False,
-) -> None:
+    show_details: bool = True,
+) -> str:
     data_config = config["data"]
     run_dir = run_directory(config, patient_count, seed)
+    metrics_path = run_dir / "test_evaluation" / "metrics.json"
+
+    # Check completed scientific outputs before touching the subset manifest.
+    # This keeps a valid result immutable when the matrix is resumed.
+    if valid_metrics_file(metrics_path) and not force and not dry_run and not prepare_only:
+        print(
+            f"patients={patient_count} scans={patient_count * 4} seed={seed} "
+            f"run_dir={run_dir}"
+        )
+        if show_details:
+            print("validation=74 patients / 296 scans (fixed)")
+            print("test=125 patients / 500 scans (fixed, outcome-only)")
+        print(f"resume=complete; skipping existing valid metrics: {metrics_path}")
+        safe_plot_run_artifacts(run_dir)
+        return "skipped"
+
     manifest_path = run_dir / "subset_manifest.csv"
     report = prepare_subset_manifest(
         train_csv=data_config["train_csv"],
@@ -302,23 +352,19 @@ def run_one(
         f"patients={patient_count} scans={patient_count * 4} seed={seed} "
         f"run_dir={run_dir}"
     )
-    print(f"selected_patient_order={report['selected_patient_order']}")
-    print("validation=74 patients / 296 scans (fixed)")
-    print("test=125 patients / 500 scans (fixed, outcome-only)")
+    if show_details:
+        print(f"selected_patient_order={report['selected_patient_order']}")
+        print("validation=74 patients / 296 scans (fixed)")
+        print("test=125 patients / 500 scans (fixed, outcome-only)")
 
     if dry_run:
         print(f"training_command={_command_text(training_command)}")
         print(f"evaluation_command={_command_text(evaluation_command)}")
         print("dry_run=True; no model was instantiated and no training/evaluation was started")
-        return
+        return "dry-run"
     if prepare_only:
         print("prepare_only=True; no training/evaluation was started")
-        return
-
-    metrics_path = run_dir / "test_evaluation" / "metrics.json"
-    if valid_metrics_file(metrics_path) and not force:
-        print(f"resume=complete; skipping existing valid metrics: {metrics_path}")
-        return
+        return "prepared"
 
     if evaluate_only and not (run_dir / "best_model.ckpt").is_file():
         raise FileNotFoundError(
@@ -353,7 +399,7 @@ def run_one(
         metadata["status"] = "trained_not_evaluated"
         write_json(metadata_path, metadata)
         print(f"train_only=True; checkpoint={best_checkpoint}")
-        return
+        return "trained"
 
     print(f"starting_test_evaluation_on={test_csv}")
     subprocess.run(evaluation_command, cwd=REPO_ROOT, check=True)
@@ -373,6 +419,111 @@ def run_one(
         f"completed=True test_balanced_accuracy={float(metrics['balanced_accuracy']):.6f} "
         f"test_accuracy={float(metrics['accuracy']):.6f}"
     )
+    safe_plot_run_artifacts(run_dir)
+    return "completed"
+
+
+def _matrix_command(config_path: Path, patient_count: int, seed: int) -> str:
+    return _command_text(
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--config",
+            str(config_path),
+            "--patients",
+            str(patient_count),
+            "--seed",
+            str(seed),
+        ]
+    )
+
+
+def _print_matrix_progress(
+    config: Mapping[str, Any], candidates: list[tuple[int, int]]
+) -> int:
+    print("BrainIAC Data Efficiency Progress")
+    print("Patients  Scans  Seed   Test BA   Status")
+    completed = 0
+    for patient_count, seed in candidates:
+        status, balanced_accuracy = candidate_status(config, patient_count, seed)
+        if status == "COMPLETE":
+            completed += 1
+        metric_text = f"{balanced_accuracy:.4f}" if balanced_accuracy is not None else "-"
+        print(
+            f"{patient_count:<9}{patient_count * 4:<7}{seed:<7}"
+            f"{metric_text:<10}{status}"
+        )
+    print(f"Completed: {completed} / {len(candidates)}")
+    return completed
+
+
+def run_matrix(
+    config: Mapping[str, Any],
+    config_path: Path,
+    checkpoint_path: Path,
+    plan: Mapping[int, list[int]],
+    *,
+    dry_run: bool = False,
+    run_function: Callable[..., str] | None = None,
+    aggregate_function: Callable[..., Mapping[str, Any]] | None = None,
+) -> Mapping[str, Any] | None:
+    """Execute the configured matrix sequentially and aggregate after success."""
+
+    candidates = matrix_candidates(plan)
+    _print_matrix_progress(config, candidates)
+    run_function = run_function or run_one
+    for index, (patient_count, seed) in enumerate(candidates, start=1):
+        print(
+            f"matrix_start={index}/{len(candidates)} patients={patient_count} "
+            f"scans={patient_count * 4} seed={seed}"
+        )
+        try:
+            result = run_function(
+                config,
+                config_path,
+                checkpoint_path,
+                patient_count,
+                seed,
+                dry_run=dry_run,
+                show_details=False,
+            )
+        except Exception as exc:
+            print(
+                f"MATRIX FAILURE patients={patient_count} scans={patient_count * 4} seed={seed}",
+                file=sys.stderr,
+            )
+            print(f"command={_matrix_command(config_path, patient_count, seed)}", file=sys.stderr)
+            print(f"failure={exc}", file=sys.stderr)
+            raise
+        status, balanced_accuracy = candidate_status(config, patient_count, seed)
+        if dry_run:
+            status = "DRY-RUN"
+        elif result == "skipped":
+            status = "SKIPPED"
+        elif status == "COMPLETE":
+            status = "COMPLETE"
+        metric_text = f" test_ba={balanced_accuracy:.4f}" if balanced_accuracy is not None else ""
+        print(
+            f"matrix_finished={index}/{len(candidates)} patients={patient_count} "
+            f"seed={seed} status={status}{metric_text}"
+        )
+
+    if dry_run:
+        print(f"dry_run_matrix_runs={len(candidates)}")
+        return None
+
+    aggregate_function = aggregate_function or aggregate_results
+    result = aggregate_function(
+        config_path=config_path,
+        results_root=config["output"]["root_dir"],
+    )
+    print(f"matrix_aggregation_complete={result['summary_path']}")
+    completed = sum(
+        candidate_status(config, patient_count, seed)[0] == "COMPLETE"
+        for patient_count, seed in candidates
+    )
+    print(f"Completed: {completed} / {len(candidates)}")
+    return result
 
 
 def main() -> None:
@@ -382,23 +533,32 @@ def main() -> None:
     validate_finetune_config(config)
     plan = seed_plan_from_config(config)
 
-    if args.dry_run_matrix:
+    if args.dry_run_matrix or args.run_matrix:
+        if args.patients is not None or args.seed is not None:
+            raise SystemExit("--patients and --seed cannot be combined with a matrix mode")
+        if args.force:
+            raise SystemExit("--force cannot be combined with a matrix mode")
         checkpoint_path = resolve_repo_path(args.checkpoint or config["model"]["checkpoint_path"])
-        for patient_count in plan:
-            for seed in plan[patient_count]:
-                run_one(
-                    config,
-                    config_path,
-                    checkpoint_path,
-                    patient_count,
-                    seed,
-                    dry_run=True,
+        if args.run_matrix:
+            configured_checkpoint = resolve_repo_path(config["model"]["checkpoint_path"])
+            if checkpoint_path != configured_checkpoint:
+                raise ValueError(
+                    "--checkpoint must resolve to the same general checkpoint configured in the YAML; "
+                    "the evaluator uses that configured path"
                 )
-        print(f"dry_run_matrix_runs={sum(len(seeds) for seeds in plan.values())}")
+        run_matrix(
+            config,
+            config_path,
+            checkpoint_path,
+            plan,
+            dry_run=args.dry_run_matrix,
+        )
         return
 
     if args.patients is None or args.seed is None:
-        raise SystemExit("--patients and --seed are required unless --dry-run-matrix is used")
+        raise SystemExit(
+            "--patients and --seed are required unless --dry-run-matrix or --run-matrix is used"
+        )
     validate_experiment_request(config, args.patients, args.seed)
 
     configured_checkpoint = resolve_repo_path(config["model"]["checkpoint_path"])

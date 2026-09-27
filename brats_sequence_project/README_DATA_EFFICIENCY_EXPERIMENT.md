@@ -10,81 +10,68 @@ existing BrainIAC model for the four-way sequence task:
 | 2 | FLAIR |
 | 3 | T1CE |
 
-The existing full-data reference is 295 training patients (1,180 scans), 74
-validation patients (296 scans), and 125 test patients (500 scans). Its verified
-untouched-test result is 0.938 balanced accuracy and 0.938 ordinary accuracy.
-That value is context only: this framework never hardcodes it into aggregation.
+Each patient contributes exactly four scans. The fixed validation cohort is 74
+patients and 296 scans. The fixed test cohort is 125 patients and 500 scans.
+Every final model is evaluated on that same full test cohort, including models
+trained on only four scans.
+
+The existing 295-patient/1,180-scan full-data run is a separate reference. When
+a compatible saved result is available, aggregation reads its measured metrics
+and does not retrain it or hardcode a value.
 
 ## Scientific design
 
-The independent variable is the number of labeled training patients/scans. Each
-patient contributes exactly four scans, one per modality, so patient-level
-sampling is mandatory. Selecting scans independently could put different
-modalities from one patient in different splits and would invalidate the
-experiment.
-
-The configured grid is:
+The configured low-data grid uses two deterministic patient-subset seeds:
+42 and 123. Two repeated subsets provide a compute-conscious estimate of
+sensitivity to which patients are selected. They are not a rigorous uncertainty
+estimate and should not be presented as one.
 
 | Training patients | Training scans | Seeds |
 | ---: | ---: | --- |
-| 1 | 4 | 42, 123, 456, 789, 2026 |
-| 2 | 8 | 42, 123, 456, 789, 2026 |
-| 5 | 20 | 42, 123, 456, 789, 2026 |
-| 10 | 40 | 42, 123, 456, 789, 2026 |
-| 25 | 100 | 42, 123, 456, 789, 2026 |
-| 50 | 200 | 42, 123, 456 |
-| 75 | 300 | 42, 123, 456 |
-| 100 | 400 | 42, 123, 456 |
-| 150 | 600 | 42 |
-| 200 | 800 | 42 |
-| 250 | 1000 | 42 |
-| 295 | 1180 | 42 |
+| 1 | 4 | 42, 123 |
+| 2 | 8 | 42, 123 |
+| 5 | 20 | 42, 123 |
+| 10 | 40 | 42, 123 |
+| 25 | 100 | 42, 123 |
+| 50 | 200 | 42, 123 |
+| 75 | 300 | 42, 123 |
+| 100 | 400 | 42, 123 |
+| 150 | 600 | 42, 123 |
+| 200 | 800 | 42, 123 |
+| 250 | 1,000 | 42, 123 |
 
-This is 38 planned runs. The editable configuration is
-`finetune/config/data_efficiency.yml`.
+There are 22 configured low-data candidate runs. The existing
+`patients_001/seed_42` result is one of them, so 21 new low-data runs are
+needed when that compatible result is present.
 
 For each seed, the runner sorts all training patient IDs, shuffles that list
-once with the seed, and takes prefixes of it. Thus the 2-patient subset contains
-the 1-patient subset, the 5-patient subset contains the 2-patient subset, and
-so on. A different seed gets an independent ordering.
+once with the seed, and takes prefixes of it. Therefore the 1-patient subset
+is a prefix of the 2-patient subset, which is a prefix of the 5-patient subset,
+and so on. The two seeds use separate deterministic orderings. The runner
+rejects patient/seed pairs that are not in the configured plan.
 
-The validation CSV is always the existing full
-`brats_sequence_project/outputs/val.csv` (296 scans), and the test CSV is always
-the existing full `brats_sequence_project/outputs/test.csv` (500 scans). The
-runner asserts those fixed sizes and checks that validation and test patients do
-not overlap with one another or with a selected training subset. It also aborts
-on incomplete patients, class imbalance, duplicate patient/modality rows, or
-segmentation-mask inputs.
-
-Every training run constructs BrainIAC from
-`checkpoints/BrainIAC.ckpt` and creates a fresh four-class classifier. The
-backbone remains trainable. The runner calls the existing
-`finetune_model.py`; it does not copy or replace its model, transforms, loss,
-optimizer, scheduler, batch size, epoch count, precision, or validation
-checkpoint-selection logic. Checkpoint selection remains validation balanced
-accuracy only. Test data is loaded only by `evaluate_checkpoint.py` after the
-best checkpoint is fixed.
-
-The paper's 10/20/40/60/80/100% comparison is related but not identical. This
-study expands the low-data regime using explicit patient counts and nested
-subsets; it does not claim that the requested counts exactly reproduce those
-paper percentages.
+The runner calls the existing `finetune_model.py` and
+`evaluate_checkpoint.py`. It does not change BrainIAC, the classifier,
+optimizer, learning rate, scheduler, epoch count, preprocessing,
+augmentations, checkpoint selection, validation set, or test set. Every
+training run starts from the general `checkpoints/BrainIAC.ckpt`, and
+checkpoint selection uses validation balanced accuracy only. Test metrics are
+outcome measurements and never tune a later run.
 
 ## Files and result layout
 
-New files:
+- `finetune/config/data_efficiency.yml` — fixed training contract and the
+  11-count/two-seed plan.
+- `finetune/scripts/make_subset_manifest.py` — deterministic nested subset
+  creation and split assertions.
+- `finetune/scripts/run_data_efficiency.py` — single-candidate and sequential
+  matrix orchestration with resume behavior.
+- `finetune/scripts/aggregate_data_efficiency.py` — CSV aggregation, baseline
+  reuse, and plotting.
+- `finetune/tests/test_data_efficiency.py` — CPU-safe orchestration,
+  aggregation, and plotting tests.
 
-- `finetune/config/data_efficiency.yml` — unchanged reproduction hyperparameters plus the patient/seed plan.
-- `finetune/scripts/make_subset_manifest.py` — deterministic subset creation and assertions.
-- `finetune/scripts/run_data_efficiency.py` — one-run orchestration and resumability.
-- `finetune/scripts/aggregate_data_efficiency.py` — completed-run aggregation and optional plots.
-- `finetune/tests/test_data_efficiency.py` — CPU-safe deterministic, integrity, resume, and aggregation checks.
-
-The existing trainer has only a backward-compatible `--train-csv` and
-`--val-csv` override so the selected manifest can be passed into the same
-training implementation.
-
-Each completed run is stored as:
+Each candidate is stored under a directory such as:
 
 ```text
 finetune/results/data_efficiency/
@@ -95,6 +82,9 @@ finetune/results/data_efficiency/
         ├── run_metadata.json
         ├── training_history.json
         ├── training_history.csv
+        ├── loss_curve.png
+        ├── validation_balanced_accuracy_curve.png
+        ├── confusion_matrix.png
         ├── best_model.ckpt
         └── test_evaluation/
             ├── metrics.json
@@ -102,10 +92,9 @@ finetune/results/data_efficiency/
             └── predictions.csv
 ```
 
-`run_metadata.json` records the selected IDs, source split paths, fixed
-validation/test paths, seed, checkpoint path, training settings, best epoch and
-validation balanced accuracy, full-fine-tuning status, test-selection guard,
-timestamp, and available git commit hash.
+The per-run plots are generated from the saved training history and final test
+metrics. Plotting is best effort: if matplotlib or a required plot input is
+unavailable, the runner prints a warning and preserves the numerical outputs.
 
 ## Lab-server commands
 
@@ -116,33 +105,7 @@ cd /path/to/BrainIAC_Testing
 source ~/pytorch/bin/activate
 ```
 
-One tiny real run (1 patient, seed 42):
-
-```bash
-python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
-  --patients 1 \
-  --seed 42
-```
-
-One 5-patient run:
-
-```bash
-python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
-  --patients 5 \
-  --seed 42
-```
-
-Prepare and validate one manifest without training:
-
-```bash
-python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
-  --patients 5 \
-  --seed 42 \
-  --prepare-only
-```
-
-Print one run's selected IDs and intended training/evaluation commands without
-instantiating the model:
+Dry-run one candidate:
 
 ```bash
 python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
@@ -151,69 +114,111 @@ python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
   --dry-run
 ```
 
-Prepare every configured manifest and print every intended command without
-training:
+Run one candidate:
+
+```bash
+python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
+  --patients 5 \
+  --seed 42
+```
+
+Prepare one manifest without training:
+
+```bash
+python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
+  --patients 5 \
+  --seed 42 \
+  --prepare-only
+```
+
+Dry-run the complete configured matrix without training or evaluation:
 
 ```bash
 python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
   --dry-run-matrix
 ```
 
-There is intentionally no training-all command. Execute the printed or
-per-run commands one at a time (or submit them through the lab's controlled
-GPU scheduler), allowing the runner to resume each completed result safely.
+Run the complete matrix sequentially:
 
-The runner is resumable:
+```bash
+python brats_sequence_project/finetune/scripts/run_data_efficiency.py \
+  --run-matrix
+```
 
-1. A valid `test_evaluation/metrics.json` causes the run to be skipped.
-2. An existing `best_model.ckpt` without valid final metrics skips retraining and runs only evaluation.
-3. An existing subset without a checkpoint trains that exact manifest.
-4. With neither artifact, it prepares, trains, and evaluates.
+The same `--run-matrix` command is the restart command after an interruption.
+Candidates run in this order: each patient count in the table above, then seed
+42 followed by seed 123. The runner prints a compact progress table and stops
+with a nonzero error at the first unexpected failure. Completed results remain
+available for the next restart.
 
-Use `--train-only` to stop after checkpoint creation or `--evaluate-only` to
-evaluate an existing checkpoint. `--force` explicitly permits retraining and
-rewriting the run's generated checkpoint/history/evaluation artifacts; without
-it, a valid completed result is never silently overwritten.
+Resume behavior is artifact-based:
+
+1. A valid `test_evaluation/metrics.json` is skipped without rewriting the
+   completed scientific result.
+2. An existing `best_model.ckpt` without valid final metrics skips training and
+   runs evaluation only.
+3. An existing valid subset manifest without a checkpoint trains using that
+   exact manifest.
+4. With neither artifact, the runner prepares the nested subset, trains, and
+   evaluates.
+
+The fixed validation CSV remains 296 scans and the fixed test CSV remains 500
+scans in every mode. `--dry-run` and `--dry-run-matrix` print intended commands
+without instantiating the model or starting scientific processes.
 
 ## Aggregation and plots
 
-Aggregate all valid completed data-efficiency runs:
+`--run-matrix` automatically aggregates after every configured candidate has
+completed. Aggregation can also be run independently:
 
 ```bash
 python brats_sequence_project/finetune/scripts/aggregate_data_efficiency.py
 ```
 
-This writes:
+The aggregate CSV outputs are:
 
-- `finetune/results/data_efficiency/data_efficiency_summary.csv` — one row per patient count with mean, sample standard deviation, minimum, maximum, completed-seed count, mean ordinary accuracy, and mean best validation balanced accuracy.
-- `finetune/results/data_efficiency/data_efficiency_all_runs.csv` — one row per patient-count/seed result.
+- `data_efficiency_all_runs.csv` — one row per completed patient-count/seed
+  result, plus the compatible full-data baseline when available. It includes
+  `patient_count`, `training_scans`, `seed`,
+  `best_validation_balanced_accuracy`, `best_epoch`,
+  `test_balanced_accuracy`, and `test_accuracy`.
+- `data_efficiency_summary.csv` — one row per completed training size. It
+  includes `patient_count`, `training_scans`, `completed_seed_count`, mean
+  test balanced accuracy, sample standard deviation, minimum, maximum, mean
+  ordinary accuracy, and mean best validation balanced accuracy.
 
-If a compatible 295-patient result already exists under the data-efficiency
-root or the broader `finetune/results/` tree, aggregation detects its measured
-test balanced accuracy and adds `performance_retained_percent`. It does not
-retrain or substitute the known 0.938 reference. If no valid baseline exists,
-retention columns remain blank.
+The aggregate plot outputs are:
 
-With an existing matplotlib installation, add plots:
+- `data_efficiency_curve.png` — mean test balanced accuracy versus training
+  scans, with standard-deviation error bars where available.
+- `data_efficiency_individual_seeds.png` — separate seed-42 and seed-123
+  curves, with the one full-data baseline shown separately when available.
+- `performance_retained.png` — mean test balanced accuracy as a percentage of
+  the compatible full-data baseline; generated only when that baseline is
+  verified.
+- `data_efficiency_accuracy_curve.png` — secondary mean ordinary test
+  accuracy curve.
+- `data_efficiency_curve_by_patients.png` — retained compatibility view with
+  training patients on the x-axis.
 
-```bash
-python brats_sequence_project/finetune/scripts/aggregate_data_efficiency.py \
-  --plot
-```
+Each completed candidate also receives:
 
-This additionally writes `data_efficiency_curve.png` (training scans on the
-x-axis) and `data_efficiency_curve_by_patients.png` (training patients on the
-x-axis), with seed standard-deviation error bars.
+- `loss_curve.png` — training and validation loss by epoch.
+- `validation_balanced_accuracy_curve.png` — validation balanced accuracy by
+  epoch with the best validation epoch marked.
+- `confusion_matrix.png` — final 500-scan test confusion matrix with T1, T2,
+  FLAIR, and T1CE labels.
+
+No second full-data value is fabricated when only one compatible baseline run
+exists. Retention is omitted when the compatibility checks cannot verify a
+295-patient/1,180-scan baseline.
 
 ## Verification and scientific guardrails
 
 CPU-safe checks can run on the Mac:
 
 ```bash
-python -m unittest discover \
-  -s brats_sequence_project/finetune/tests \
-  -p 'test_*.py' \
-  -v
+python -m unittest brats_sequence_project/finetune/tests/test_data_efficiency.py -v
 python -m py_compile \
   brats_sequence_project/finetune/scripts/finetune_common.py \
   brats_sequence_project/finetune/scripts/finetune_model.py \
@@ -222,12 +227,7 @@ python -m py_compile \
   brats_sequence_project/finetune/scripts/aggregate_data_efficiency.py
 ```
 
-Missing CUDA, PyTorch, MONAI, or the ignored checkpoint on the Mac is not a
-failure of the orchestration framework. The runner intentionally refuses to
-train without CUDA. No test accuracy may be used to select an epoch, change a
-learning rate, alter preprocessing/augmentation, tune architecture, or change
-training duration. The fixed test result is an outcome measurement only.
-
-The lab environment should continue to use the verified `~/pytorch` virtual
-environment, including MONAI 1.3.2; do not upgrade MONAI to work around a
-checkpoint state-dict mismatch.
+These tests do not run GPU training or evaluate real checkpoints. Missing CUDA,
+MONAI, or the ignored server checkpoint on the Mac is not a failure of the
+orchestration tests. The lab environment should continue to use the verified
+`~/pytorch` environment, including MONAI 1.3.2.

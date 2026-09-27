@@ -8,10 +8,12 @@ import csv
 import json
 import re
 import statistics
+import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from finetune_common import (
+    CLASS_NAMES,
     CLASS_TO_INDEX,
     EXPECTED_TEST_SCANS,
     REPO_ROOT,
@@ -20,6 +22,7 @@ from finetune_common import (
     resolve_repo_path,
     validate_finetune_config,
 )
+from make_subset_manifest import seed_plan_from_config
 
 
 PATIENT_DIRECTORY = re.compile(r"^patients_(\d+)$")
@@ -189,6 +192,23 @@ def discover_completed_runs(results_root: str | Path) -> list[dict[str, Any]]:
             }
         )
     return completed
+
+
+def filter_runs_to_plan(
+    runs: Sequence[Mapping[str, Any]], seed_plan: Mapping[int, Sequence[int]]
+) -> list[dict[str, Any]]:
+    """Keep only valid results belonging to the configured low-data matrix."""
+
+    configured = {
+        (int(patient_count), int(seed))
+        for patient_count, seeds in seed_plan.items()
+        for seed in seeds
+    }
+    return [
+        dict(run)
+        for run in runs
+        if (int(run["patient_count"]), int(run["seed"])) in configured
+    ]
 
 
 def _looks_like_fixed_test_csv(metrics: Mapping[str, Any]) -> bool:
@@ -461,6 +481,7 @@ def aggregate_runs(
                 "patient_count": patient_count,
                 "training_scans": patient_count * 4,
                 "scans_per_class": patient_count,
+                "completed_seed_count": len({int(run["seed"]) for run in group}),
                 "number_of_completed_seeds": len({int(run["seed"]) for run in group}),
                 "mean_test_balanced_accuracy": mean_test_ba,
                 "std_test_balanced_accuracy": _sample_std(test_ba),
@@ -487,6 +508,7 @@ SUMMARY_FIELDS = [
     "patient_count",
     "training_scans",
     "scans_per_class",
+    "completed_seed_count",
     "number_of_completed_seeds",
     "mean_test_balanced_accuracy",
     "std_test_balanced_accuracy",
@@ -538,7 +560,7 @@ def run_rows_for_csv(runs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def plot_curves(summary: Sequence[Mapping[str, Any]], output_root: Path) -> None:
+def _matplotlib():
     try:
         import matplotlib
 
@@ -546,26 +568,379 @@ def plot_curves(summary: Sequence[Mapping[str, Any]], output_root: Path) -> None
         import matplotlib.pyplot as plt
     except ImportError as exc:
         raise RuntimeError("Plotting requires an existing matplotlib installation") from exc
-    if not summary:
+    return plt
+
+
+def _plot_history_points(
+    history: Sequence[Mapping[str, Any]],
+    field: str,
+    *,
+    nested_field: str | None = None,
+) -> tuple[list[float], list[float]]:
+    epochs: list[float] = []
+    values: list[float] = []
+    for index, record in enumerate(history, start=1):
+        raw_value: Any
+        if nested_field is None:
+            raw_value = record.get(field)
+        else:
+            metrics = record.get(nested_field)
+            raw_value = metrics.get(field) if isinstance(metrics, Mapping) else None
+        value = _numeric(raw_value)
+        if value is None:
+            continue
+        epoch = _numeric(record.get("epoch"))
+        epochs.append(epoch if epoch is not None else float(index))
+        values.append(value)
+    return epochs, values
+
+
+def _load_plot_history(run_dir: Path) -> list[dict[str, Any]]:
+    history_path = run_dir / "training_history.json"
+    if not history_path.is_file():
+        raise RuntimeError(f"training history is missing: {history_path}")
+    history = _read_json(history_path)
+    if not isinstance(history, list) or not history:
+        raise RuntimeError(f"training history is empty or invalid: {history_path}")
+    records = [record for record in history if isinstance(record, Mapping)]
+    if not records:
+        raise RuntimeError(f"training history contains no usable records: {history_path}")
+    return [dict(record) for record in records]
+
+
+def plot_run_artifacts(run_directory: str | Path) -> list[Path]:
+    """Create plots for one completed run from its saved history and metrics."""
+
+    plt = _matplotlib()
+    run_dir = resolve_repo_path(run_directory)
+    history = _load_plot_history(run_dir)
+    metrics_path = run_dir / "test_evaluation" / "metrics.json"
+    if not metrics_path.is_file():
+        raise RuntimeError(f"test metrics are missing: {metrics_path}")
+    metrics = _read_json(metrics_path)
+    if not isinstance(metrics, Mapping):
+        raise RuntimeError(f"test metrics are invalid: {metrics_path}")
+
+    train_epochs, train_losses = _plot_history_points(history, "train_loss")
+    val_epochs, val_losses = _plot_history_points(history, "validation_loss")
+    if not val_losses:
+        val_epochs, val_losses = _plot_history_points(history, "val_loss")
+    if not train_losses or not val_losses:
+        raise RuntimeError(f"training history has no train/validation loss series: {metrics_path}")
+
+    output_paths: list[Path] = []
+    figure, axis = plt.subplots(figsize=(8, 5))
+    axis.plot(train_epochs, train_losses, label="Training loss")
+    axis.plot(val_epochs, val_losses, label="Validation loss")
+    axis.set_xlabel("Epoch")
+    axis.set_ylabel("Loss")
+    axis.set_title("BrainIAC fine-tuning loss")
+    axis.legend()
+    axis.grid(True, alpha=0.3)
+    figure.tight_layout()
+    loss_path = run_dir / "loss_curve.png"
+    figure.savefig(loss_path, dpi=160)
+    plt.close(figure)
+    output_paths.append(loss_path)
+
+    val_epochs, val_balanced_accuracy = _plot_history_points(
+        history,
+        "balanced_accuracy",
+        nested_field="validation_metrics",
+    )
+    if not val_balanced_accuracy:
+        val_epochs, val_balanced_accuracy = _plot_history_points(
+            history, "validation_balanced_accuracy"
+        )
+    if not val_balanced_accuracy:
+        raise RuntimeError(f"training history has no validation balanced-accuracy series: {metrics_path}")
+    best_index = max(range(len(val_balanced_accuracy)), key=val_balanced_accuracy.__getitem__)
+    best_epoch = val_epochs[best_index]
+    best_value = val_balanced_accuracy[best_index]
+    figure, axis = plt.subplots(figsize=(8, 5))
+    axis.plot(val_epochs, val_balanced_accuracy, marker="o", label="Validation balanced accuracy")
+    axis.scatter([best_epoch], [best_value], color="tab:red", zorder=3, label=f"Best epoch {int(best_epoch)}")
+    axis.annotate(
+        f"{best_value:.4f}",
+        (best_epoch, best_value),
+        xytext=(6, 8),
+        textcoords="offset points",
+    )
+    axis.set_xlabel("Epoch")
+    axis.set_ylabel("Validation balanced accuracy")
+    axis.set_ylim(0, 1)
+    axis.set_title("Validation balanced accuracy")
+    axis.legend()
+    axis.grid(True, alpha=0.3)
+    figure.tight_layout()
+    validation_path = run_dir / "validation_balanced_accuracy_curve.png"
+    figure.savefig(validation_path, dpi=160)
+    plt.close(figure)
+    output_paths.append(validation_path)
+
+    matrix = metrics.get("confusion_matrix")
+    if (
+        not isinstance(matrix, list)
+        or len(matrix) != len(CLASS_NAMES)
+        or any(not isinstance(row, list) or len(row) != len(CLASS_NAMES) for row in matrix)
+    ):
+        raise RuntimeError(f"test metrics have no 4x4 confusion matrix: {metrics_path}")
+    figure, axis = plt.subplots(figsize=(6, 5.5))
+    image = axis.imshow(matrix, interpolation="nearest", cmap="Blues")
+    figure.colorbar(image, ax=axis)
+    axis.set(
+        xticks=range(len(CLASS_NAMES)),
+        yticks=range(len(CLASS_NAMES)),
+        xticklabels=CLASS_NAMES,
+        yticklabels=CLASS_NAMES,
+        xlabel="Predicted label",
+        ylabel="True label",
+        title="Final 500-scan test confusion matrix",
+    )
+    threshold = max(max(row) for row in matrix) / 2 if matrix else 0
+    for row_index, row in enumerate(matrix):
+        for column_index, value in enumerate(row):
+            axis.text(
+                column_index,
+                row_index,
+                str(value),
+                ha="center",
+                va="center",
+                color="white" if value > threshold else "black",
+            )
+    figure.tight_layout()
+    confusion_path = run_dir / "confusion_matrix.png"
+    figure.savefig(confusion_path, dpi=160)
+    plt.close(figure)
+    output_paths.append(confusion_path)
+    return output_paths
+
+
+def safe_plot_run_artifacts(run_directory: str | Path) -> list[Path]:
+    """Create per-run plots while keeping plotting failures non-fatal."""
+
+    try:
+        paths = plot_run_artifacts(run_directory)
+    except Exception as exc:  # Plotting must never invalidate scientific outputs.
+        print(f"WARNING: could not generate plots for {run_directory}: {exc}", file=sys.stderr)
+        return []
+    print(f"run_plots={','.join(str(path) for path in paths)}")
+    return paths
+
+
+def _summary_with_baseline(
+    summary: Sequence[Mapping[str, Any]], baseline: Mapping[str, Any] | None
+) -> list[Mapping[str, Any]]:
+    rows = [dict(row) for row in summary]
+    if baseline is None or any(int(row["patient_count"]) == 295 for row in rows):
+        return rows
+    balanced_accuracy = _numeric(baseline.get("test_balanced_accuracy"))
+    accuracy = _numeric(baseline.get("test_accuracy"))
+    if balanced_accuracy is None or accuracy is None:
+        return rows
+    rows.append(
+        {
+            "patient_count": 295,
+            "training_scans": 1180,
+            "scans_per_class": 295,
+            "completed_seed_count": 1,
+            "number_of_completed_seeds": 1,
+            "mean_test_balanced_accuracy": balanced_accuracy,
+            "std_test_balanced_accuracy": 0.0,
+            "min_test_balanced_accuracy": balanced_accuracy,
+            "max_test_balanced_accuracy": balanced_accuracy,
+            "mean_test_accuracy": accuracy,
+            "mean_best_validation_balanced_accuracy": baseline.get(
+                "best_validation_balanced_accuracy"
+            ),
+            "performance_retained_percent": 100.0,
+            "full_data_test_balanced_accuracy": balanced_accuracy,
+        }
+    )
+    return rows
+
+
+def _save_figure(figure: Any, path: Path, plt: Any) -> Path:
+    figure.tight_layout()
+    figure.savefig(path, dpi=160)
+    plt.close(figure)
+    return path
+
+
+def plot_curves(
+    summary: Sequence[Mapping[str, Any]],
+    output_root: Path,
+    runs: Sequence[Mapping[str, Any]] = (),
+    baseline: Mapping[str, Any] | None = None,
+) -> list[Path]:
+    """Write aggregate balanced-accuracy, seed, retention, and accuracy plots."""
+
+    plt = _matplotlib()
+    output_root.mkdir(parents=True, exist_ok=True)
+    rows = sorted(
+        _summary_with_baseline(summary, baseline),
+        key=lambda row: int(row["training_scans"]),
+    )
+    if not rows:
         raise RuntimeError("Cannot plot a data-efficiency curve with no completed runs")
 
-    scans = [int(row["training_scans"]) for row in summary]
-    patients = [int(row["patient_count"]) for row in summary]
-    means = [float(row["mean_test_balanced_accuracy"]) for row in summary]
-    errors = [float(row["std_test_balanced_accuracy"]) for row in summary]
-    for x_values, path, xlabel in (
-        (scans, output_root / "data_efficiency_curve.png", "Training scans"),
-        (patients, output_root / "data_efficiency_curve_by_patients.png", "Training patients"),
+    scans = [int(row["training_scans"]) for row in rows]
+    patients = [int(row["patient_count"]) for row in rows]
+    means = [float(row["mean_test_balanced_accuracy"]) for row in rows]
+    errors = [float(row.get("std_test_balanced_accuracy") or 0.0) for row in rows]
+    output_paths: list[Path] = []
+
+    figure, axis = plt.subplots(figsize=(8, 5))
+    axis.errorbar(scans, means, yerr=errors, marker="o", capsize=3)
+    axis.set_xlabel("Training scans")
+    axis.set_ylabel("Test balanced accuracy")
+    axis.set_ylim(0, 1)
+    axis.set_title("BrainIAC data efficiency")
+    axis.grid(True, alpha=0.3)
+    output_paths.append(_save_figure(figure, output_root / "data_efficiency_curve.png", plt))
+
+    figure, axis = plt.subplots(figsize=(8, 5))
+    axis.errorbar(patients, means, yerr=errors, marker="o", capsize=3)
+    axis.set_xlabel("Training patients")
+    axis.set_ylabel("Test balanced accuracy")
+    axis.set_ylim(0, 1)
+    axis.set_title("BrainIAC data efficiency by patient count")
+    axis.grid(True, alpha=0.3)
+    output_paths.append(
+        _save_figure(figure, output_root / "data_efficiency_curve_by_patients.png", plt)
+    )
+
+    figure, axis = plt.subplots(figsize=(8, 5))
+    seeds = sorted(
+        {
+            int(run["seed"])
+            for run in runs
+            if int(run["patient_count"]) != 295
+        }
+    )
+    for seed in seeds:
+        seed_runs = sorted(
+            (
+                run
+                for run in runs
+                if int(run["seed"]) == seed and int(run["patient_count"]) != 295
+            ),
+            key=lambda run: int(run["training_scans"]),
+        )
+        axis.plot(
+            [int(run["training_scans"]) for run in seed_runs],
+            [float(run["test_balanced_accuracy"]) for run in seed_runs],
+            marker="o",
+            label=f"seed {seed}",
+        )
+    if baseline is not None:
+        baseline_ba = _numeric(baseline.get("test_balanced_accuracy"))
+        if baseline_ba is not None:
+            axis.scatter(
+                [1180],
+                [baseline_ba],
+                marker="*",
+                s=140,
+                label="full-data baseline (one run)",
+                zorder=3,
+            )
+    axis.set_xlabel("Training scans")
+    axis.set_ylabel("Test balanced accuracy")
+    axis.set_ylim(0, 1)
+    axis.set_title("Data efficiency by patient-subset seed")
+    axis.legend()
+    axis.grid(True, alpha=0.3)
+    output_paths.append(
+        _save_figure(figure, output_root / "data_efficiency_individual_seeds.png", plt)
+    )
+
+    if baseline is not None:
+        retention_rows = [
+            row
+            for row in rows
+            if _numeric(row.get("performance_retained_percent")) is not None
+        ]
+        if retention_rows:
+            figure, axis = plt.subplots(figsize=(8, 5))
+            axis.plot(
+                [int(row["training_scans"]) for row in retention_rows],
+                [float(row["performance_retained_percent"]) for row in retention_rows],
+                marker="o",
+            )
+            axis.set_xlabel("Training scans")
+            axis.set_ylabel("Percentage of full-data balanced accuracy retained")
+            axis.set_title("Performance retained versus full-data baseline")
+            axis.grid(True, alpha=0.3)
+            output_paths.append(
+                _save_figure(figure, output_root / "performance_retained.png", plt)
+            )
+
+    figure, axis = plt.subplots(figsize=(8, 5))
+    axis.plot(
+        scans,
+        [float(row["mean_test_accuracy"]) for row in rows],
+        marker="o",
+    )
+    axis.set_xlabel("Training scans")
+    axis.set_ylabel("Test accuracy")
+    axis.set_ylim(0, 1)
+    axis.set_title("BrainIAC data efficiency by ordinary accuracy")
+    axis.grid(True, alpha=0.3)
+    output_paths.append(
+        _save_figure(figure, output_root / "data_efficiency_accuracy_curve.png", plt)
+    )
+    return output_paths
+
+
+def aggregate_results(
+    *,
+    config_path: str | Path = DEFAULT_COMPATIBILITY_CONFIG,
+    results_root: str | Path = REPO_ROOT / "brats_sequence_project/finetune/results/data_efficiency",
+    baseline_root: str | Path = REPO_ROOT / "brats_sequence_project/finetune/results",
+) -> dict[str, Any]:
+    """Aggregate the configured matrix and generate all available plots."""
+
+    compatibility_config = load_yaml_config(config_path)
+    validate_finetune_config(compatibility_config)
+    seed_plan = seed_plan_from_config(compatibility_config)
+    resolved_results_root = resolve_repo_path(results_root)
+    discovered_runs = discover_completed_runs(resolved_results_root)
+    runs = filter_runs_to_plan(discovered_runs, seed_plan)
+    baseline = find_full_data_baseline(
+        resolved_results_root,
+        baseline_root,
+        expected_config=compatibility_config,
+    )
+    if baseline is not None and not any(
+        run["metrics_path"] == baseline["metrics_path"] for run in runs
     ):
-        figure, axis = plt.subplots(figsize=(8, 5))
-        axis.errorbar(x_values, means, yerr=errors, marker="o", capsize=3)
-        axis.set_xlabel(xlabel)
-        axis.set_ylabel("Test balanced accuracy")
-        axis.set_ylim(0, 1)
-        axis.grid(True, alpha=0.3)
-        figure.tight_layout()
-        figure.savefig(path, dpi=160)
-        plt.close(figure)
+        baseline = dict(baseline)
+        baseline["source"] = "existing_baseline"
+        runs.append(baseline)
+
+    summary = aggregate_runs(runs, baseline)
+    summary_path = resolved_results_root / "data_efficiency_summary.csv"
+    all_runs_path = resolved_results_root / "data_efficiency_all_runs.csv"
+    write_csv(summary_path, summary, SUMMARY_FIELDS)
+    write_csv(all_runs_path, run_rows_for_csv(runs), RUN_FIELDS)
+
+    for run in runs:
+        safe_plot_run_artifacts(run["run_directory"])
+    plot_paths: list[Path] = []
+    if summary:
+        try:
+            plot_paths = plot_curves(summary, resolved_results_root, runs, baseline)
+        except Exception as exc:  # Plotting must never invalidate CSV/numeric outputs.
+            print(f"WARNING: could not generate aggregate plots: {exc}", file=sys.stderr)
+
+    return {
+        "runs": runs,
+        "summary": summary,
+        "baseline": baseline,
+        "summary_path": summary_path,
+        "all_runs_path": all_runs_path,
+        "plot_paths": plot_paths,
+    }
 
 
 def parse_args() -> argparse.Namespace:
@@ -584,35 +959,25 @@ def parse_args() -> argparse.Namespace:
         default=str(REPO_ROOT / "brats_sequence_project/finetune/results"),
         help="Also inspect this root for an existing compatible 295-patient baseline",
     )
-    parser.add_argument("--plot", action="store_true")
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="Retained for compatibility; aggregate plots are generated automatically",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    compatibility_config = load_yaml_config(args.config)
-    validate_finetune_config(compatibility_config)
-    results_root = resolve_repo_path(args.results_root)
-    runs = discover_completed_runs(results_root)
-    baseline = find_full_data_baseline(
-        results_root,
-        args.baseline_root,
-        expected_config=compatibility_config,
+    result = aggregate_results(
+        config_path=args.config,
+        results_root=args.results_root,
+        baseline_root=args.baseline_root,
     )
-    if baseline is not None and not any(
-        run["metrics_path"] == baseline["metrics_path"] for run in runs
-    ):
-        baseline = dict(baseline)
-        baseline["source"] = "existing_baseline"
-        runs.append(baseline)
-    summary = aggregate_runs(runs, baseline)
-
-    summary_path = results_root / "data_efficiency_summary.csv"
-    all_runs_path = results_root / "data_efficiency_all_runs.csv"
-    write_csv(summary_path, summary, SUMMARY_FIELDS)
-    write_csv(all_runs_path, run_rows_for_csv(runs), RUN_FIELDS)
-    if args.plot:
-        plot_curves(summary, results_root)
+    runs = result["runs"]
+    baseline = result["baseline"]
+    summary_path = result["summary_path"]
+    all_runs_path = result["all_runs_path"]
 
     baseline_text = (
         f"{baseline['test_balanced_accuracy']:.6f} from {baseline['run_directory']}"
@@ -623,8 +988,7 @@ def main() -> None:
     print(f"full_data_baseline={baseline_text}")
     print(f"summary={summary_path}")
     print(f"all_runs={all_runs_path}")
-    if args.plot:
-        print(f"plots={results_root / 'data_efficiency_curve.png'}")
+    print(f"plots={','.join(str(path) for path in result['plot_paths']) or 'unavailable'}")
 
 
 if __name__ == "__main__":
