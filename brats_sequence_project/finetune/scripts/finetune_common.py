@@ -1,8 +1,9 @@
-"""Shared utilities for the isolated BrainIAC full-fine-tuning experiment.
+"""Shared utilities for the BrainIAC full-fine-tuning experiments.
 
-The existing project scripts intentionally remain unchanged.  This module adapts
-the official BrainIAC transforms/model to the project's patient-level BraTS CSV
-format and keeps all split, metric, and checkpoint invariants in one place.
+The released runtime transforms/model and the existing trainer remain the single
+source of truth for training behavior. These helpers add patient-level subset
+selection, split assertions, and metric validation for the additive data-
+efficiency runner without changing the scientific pipeline.
 """
 
 from __future__ import annotations
@@ -34,6 +35,11 @@ MODALITY_SUFFIXES = {
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+EXPECTED_VALIDATION_PATIENTS = 74
+EXPECTED_VALIDATION_SCANS = EXPECTED_VALIDATION_PATIENTS * len(CLASS_NAMES)
+EXPECTED_TEST_PATIENTS = 125
+EXPECTED_TEST_SCANS = EXPECTED_TEST_PATIENTS * len(CLASS_NAMES)
 
 
 def resolve_repo_path(path_value: str | Path) -> Path:
@@ -144,6 +150,138 @@ def _patients(rows: Iterable[Mapping[str, Any]]) -> set[str]:
     return {str(row["patient_id"]) for row in rows}
 
 
+def deterministic_patient_order(rows: Sequence[Mapping[str, Any]], seed: int) -> list[str]:
+    """Return one reproducible shuffled ordering of complete patient IDs."""
+
+    patient_ids = sorted({str(row["patient_id"]) for row in rows})
+    if not patient_ids:
+        raise ValueError("Cannot order patients from an empty split")
+    random.Random(seed).shuffle(patient_ids)
+    return patient_ids
+
+
+def select_patient_ids(
+    rows: Sequence[Mapping[str, Any]], patient_count: int, seed: int
+) -> tuple[list[str], list[str]]:
+    """Select the first N patients from one deterministic seed-specific ordering."""
+
+    if patient_count < 1:
+        raise ValueError(f"patient_count must be positive, got {patient_count}")
+    patient_order = deterministic_patient_order(rows, seed)
+    if patient_count > len(patient_order):
+        raise ValueError(
+            f"Requested {patient_count} patients, but the train split has {len(patient_order)}"
+        )
+    return patient_order[:patient_count], patient_order
+
+
+def validate_fixed_evaluation_splits(
+    validation_rows: Sequence[Mapping[str, Any]],
+    test_rows: Sequence[Mapping[str, Any]],
+) -> None:
+    """Enforce the fixed 296-scan validation and 500-scan test contracts."""
+
+    expected = (
+        ("validation", validation_rows, EXPECTED_VALIDATION_PATIENTS, EXPECTED_VALIDATION_SCANS),
+        ("test", test_rows, EXPECTED_TEST_PATIENTS, EXPECTED_TEST_SCANS),
+    )
+    for split_name, rows, expected_patients, expected_scans in expected:
+        patient_ids = _patients(rows)
+        if len(rows) != expected_scans or len(patient_ids) != expected_patients:
+            raise ValueError(
+                f"{split_name} must remain {expected_patients} patients/{expected_scans} scans; "
+                f"found {len(patient_ids)} patients/{len(rows)} scans"
+            )
+        modality_counts = Counter(str(row["modality"]) for row in rows)
+        label_counts = Counter(int(row["label"]) for row in rows)
+        if any(modality_counts.get(modality, 0) != expected_patients for modality in CLASS_NAMES):
+            raise ValueError(f"{split_name} must contain exactly {expected_patients} scans per modality")
+        if any(label_counts.get(index, 0) != expected_patients for index in CLASS_INDICES):
+            raise ValueError(f"{split_name} must contain exactly {expected_patients} scans per class")
+
+
+def validate_patient_subset(
+    subset_rows: Sequence[Mapping[str, Any]],
+    expected_patient_count: int,
+    train_rows: Sequence[Mapping[str, Any]],
+    validation_rows: Sequence[Mapping[str, Any]],
+    test_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Assert patient integrity, exact class balance, and no split leakage."""
+
+    selected_patients = _patients(subset_rows)
+    if len(selected_patients) != expected_patient_count:
+        raise ValueError(
+            f"Subset must contain {expected_patient_count} patients, found {len(selected_patients)}"
+        )
+    expected_scans = expected_patient_count * len(CLASS_NAMES)
+    if len(subset_rows) != expected_scans:
+        raise ValueError(
+            f"Subset must contain {expected_scans} rows, found {len(subset_rows)}"
+        )
+
+    train_patients = _patients(train_rows)
+    validation_patients = _patients(validation_rows)
+    test_patients = _patients(test_rows)
+    if not selected_patients <= train_patients:
+        raise ValueError("Subset contains a patient not present in the training split")
+    validation_overlap = sorted(selected_patients & validation_patients)
+    test_overlap = sorted(selected_patients & test_patients)
+    if validation_overlap:
+        raise ValueError(f"Subset/validation patient leakage detected: {validation_overlap}")
+    if test_overlap:
+        raise ValueError(f"Subset/test patient leakage detected: {test_overlap}")
+    split_overlap = sorted(validation_patients & test_patients)
+    if split_overlap:
+        raise ValueError(f"Validation/test patient leakage detected: {split_overlap}")
+
+    by_patient: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for row in subset_rows:
+        by_patient[str(row["patient_id"])].append(row)
+    expected_modalities = set(CLASS_NAMES)
+    incomplete = {
+        patient_id: len(rows)
+        for patient_id, rows in by_patient.items()
+        if len(rows) != len(CLASS_NAMES)
+    }
+    wrong_modalities = {
+        patient_id: sorted(str(row["modality"]) for row in rows)
+        for patient_id, rows in by_patient.items()
+        if {str(row["modality"]) for row in rows} != expected_modalities
+    }
+    if incomplete:
+        raise ValueError(f"Each selected patient must have four rows: {incomplete}")
+    if wrong_modalities:
+        raise ValueError(f"Each selected patient must have T1/T2/FLAIR/T1CE: {wrong_modalities}")
+
+    modality_counts = Counter(str(row["modality"]) for row in subset_rows)
+    label_counts = Counter(int(row["label"]) for row in subset_rows)
+    if any(modality_counts.get(modality, 0) != expected_patient_count for modality in CLASS_NAMES):
+        raise ValueError("Subset modality counts do not equal the selected patient count")
+    if any(label_counts.get(index, 0) != expected_patient_count for index in CLASS_INDICES):
+        raise ValueError("Subset class counts do not equal the selected patient count")
+    if any("seg" in Path(str(row["image_path"])).name.lower() for row in subset_rows):
+        raise ValueError("Segmentation masks are forbidden in the selected subset")
+
+    return {
+        "patient_count": expected_patient_count,
+        "scan_count": expected_scans,
+        "scans_per_class": expected_patient_count,
+        "selected_patient_ids": sorted(selected_patients),
+        "images_per_class": {
+            INDEX_TO_CLASS[index]: label_counts.get(index, 0) for index in CLASS_INDICES
+        },
+        "images_per_modality": {
+            modality: modality_counts.get(modality, 0) for modality in CLASS_NAMES
+        },
+        "validation_patient_count": len(validation_patients),
+        "validation_scan_count": len(validation_rows),
+        "test_patient_count": len(test_patients),
+        "test_scan_count": len(test_rows),
+        "no_patient_leakage": True,
+    }
+
+
 def summarize_splits(split_rows: Mapping[str, Sequence[Mapping[str, Any]]]) -> dict[str, Any]:
     """Build the required patient/image/class/overlap split summary."""
 
@@ -243,16 +381,13 @@ def select_patient_subset(
 
     if not 0 < fraction <= 1:
         raise ValueError(f"fraction must be in (0, 1], got {fraction}")
-    patient_ids = sorted({str(row["patient_id"]) for row in rows})
-    if not patient_ids:
-        raise ValueError("Cannot select a subset from an empty split")
-    random.Random(seed).shuffle(patient_ids)
-    patient_count = len(patient_ids) if fraction == 1 else max(1, int(len(patient_ids) * fraction))
+    patient_order = deterministic_patient_order(rows, seed)
+    patient_count = len(patient_order) if fraction == 1 else max(1, int(len(patient_order) * fraction))
     if max_patients is not None:
         if max_patients < 1:
             raise ValueError(f"max_patients must be positive, got {max_patients}")
         patient_count = min(patient_count, max_patients)
-    selected_patients = set(patient_ids[:patient_count])
+    selected_patients = set(patient_order[:patient_count])
     selected_indices = [
         index for index, row in enumerate(rows) if str(row["patient_id"]) in selected_patients
     ]
@@ -505,6 +640,68 @@ def calculate_metrics(y_true: Sequence[int], y_pred: Sequence[int]) -> dict[str,
         "per_class": per_class,
         "class_mapping": dict(CLASS_TO_INDEX),
     }
+
+
+def is_valid_metrics_payload(
+    payload: Any, *, expected_test_scans: int | None = EXPECTED_TEST_SCANS
+) -> bool:
+    """Return whether a saved test metrics object is safe to treat as complete."""
+
+    if not isinstance(payload, Mapping):
+        return False
+    test_csv = payload.get("test_csv")
+    if not test_csv:
+        return False
+    test_csv_path = Path(str(test_csv))
+    if test_csv_path.name != "test.csv" or "outputs" not in test_csv_path.parts:
+        return False
+    if payload.get("primary_metric") != "balanced_accuracy":
+        return False
+    try:
+        balanced_accuracy = float(payload["balanced_accuracy"])
+        accuracy = float(payload["accuracy"])
+        matrix = payload["confusion_matrix"]
+    except (KeyError, TypeError, ValueError):
+        return False
+    if not 0 <= balanced_accuracy <= 1 or not 0 <= accuracy <= 1:
+        return False
+    if not isinstance(matrix, list) or len(matrix) != len(CLASS_NAMES):
+        return False
+    if any(not isinstance(row, list) or len(row) != len(CLASS_NAMES) for row in matrix):
+        return False
+    try:
+        matrix_values = []
+        for row in matrix:
+            for value in row:
+                integer = int(value)
+                if float(value) != integer or integer < 0:
+                    return False
+                matrix_values.append(integer)
+    except (TypeError, ValueError):
+        return False
+    matrix_total = sum(matrix_values)
+    if expected_test_scans is not None and matrix_total != expected_test_scans:
+        return False
+    return payload.get("checkpoint_selected_without_test") is True
+
+
+def write_csv_rows(
+    path: str | Path,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    fieldnames: Sequence[str] | None = None,
+) -> None:
+    """Write validated row mappings while preserving source CSV columns."""
+
+    if not rows:
+        raise ValueError("Cannot write an empty CSV")
+    output_path = resolve_repo_path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    columns = list(fieldnames or rows[0].keys())
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def write_json(path: str | Path, value: Any) -> None:

@@ -39,6 +39,14 @@ def parse_args() -> argparse.Namespace:
         default=str(REPO_ROOT / "brats_sequence_project/finetune/config/full_finetune.yml"),
     )
     parser.add_argument("--checkpoint", help="Override config model.checkpoint_path")
+    parser.add_argument(
+        "--train-csv",
+        help="Override config data.train_csv (used by the additive subset runner)",
+    )
+    parser.add_argument(
+        "--val-csv",
+        help="Override config data.val_csv while preserving the existing validation pipeline",
+    )
     parser.add_argument("--fraction", type=float, help="Patient fraction of the train split")
     parser.add_argument("--seed", type=int, help="Override experiment seed")
     parser.add_argument("--output-dir", help="Override the generated run directory")
@@ -205,8 +213,10 @@ def main() -> None:
 
     torch.set_float32_matmul_precision("medium")
     seed_everything(seed)
-    train_rows = read_csv_rows(data_config["train_csv"], validate_paths=True)
-    val_rows = read_csv_rows(data_config["val_csv"], validate_paths=True)
+    train_csv = args.train_csv or data_config["train_csv"]
+    val_csv = args.val_csv or data_config["val_csv"]
+    train_rows = read_csv_rows(train_csv, validate_paths=True)
+    val_rows = read_csv_rows(val_csv, validate_paths=True)
     train_patients = {str(row["patient_id"]) for row in train_rows}
     val_patients = {str(row["patient_id"]) for row in val_rows}
     overlap = sorted(train_patients & val_patients)
