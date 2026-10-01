@@ -65,6 +65,7 @@ def parse_args() -> argparse.Namespace:
 
 def seed_everything(seed: int) -> None:
     import random
+    import torch
 
     random.seed(seed)
     try:
@@ -95,9 +96,27 @@ def _worker_init_fn(seed: int):
 
 
 def _loader_generator(seed: int) -> torch.Generator:
+    import torch
+
     generator = torch.Generator()
     generator.manual_seed(seed)
     return generator
+
+
+def build_train_loader(train_dataset, data_config: dict, seed: int):
+    """Build the exact shuffled training DataLoader used by fine-tuning."""
+
+    from torch.utils.data import DataLoader
+
+    return DataLoader(
+        train_dataset,
+        batch_size=int(data_config["batch_size"]),
+        shuffle=True,
+        num_workers=int(data_config["num_workers"]),
+        pin_memory=bool(data_config.get("pin_memory", False)),
+        worker_init_fn=_worker_init_fn(seed),
+        generator=_loader_generator(seed),
+    )
 
 
 def run_epoch(
@@ -259,16 +278,7 @@ def main() -> None:
     train_dataset = Subset(train_dataset, train_indices)
     val_dataset = Subset(val_dataset, val_indices)
 
-    num_workers = int(data_config["num_workers"])
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=int(data_config["batch_size"]),
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=bool(data_config.get("pin_memory", False)),
-        worker_init_fn=_worker_init_fn(seed),
-        generator=_loader_generator(seed),
-    )
+    train_loader = build_train_loader(train_dataset, data_config, seed)
     val_loader = DataLoader(
         val_dataset,
         batch_size=int(data_config["validation_batch_size"]),

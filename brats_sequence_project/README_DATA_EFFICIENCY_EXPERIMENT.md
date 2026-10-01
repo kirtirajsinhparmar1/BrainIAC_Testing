@@ -209,6 +209,42 @@ Each completed candidate also receives:
 - `confusion_matrix.png` — final 500-scan test confusion matrix with T1, T2,
   FLAIR, and T1CE labels.
 
+## Fine-tuning input visualization
+
+Use the input visualization utility to make the data path reviewable at three
+stages: the source NIfTI, the existing deterministic load/channel-first/resize/
+normalization path, and an actual augmented batch yielded by the training
+Dataset and DataLoader. The deterministic display is composed from the actual
+training transform's existing objects up to its first random transform, with
+the same tensor conversion. The final batch uses the shared seeded loader
+constructor from `finetune_model.py`; no model or checkpoint is loaded.
+
+On the lab server, visualize all four scans in the 1-patient/seed-42 manifest:
+
+```bash
+python brats_sequence_project/finetune/scripts/visualize_model_input.py \
+  --config brats_sequence_project/finetune/config/data_efficiency.yml \
+  --train-csv brats_sequence_project/finetune/results/data_efficiency/patients_001/seed_42/subset_manifest.csv \
+  --seed 42 \
+  --output-dir brats_sequence_project/finetune/results/data_efficiency/patients_001/seed_42/input_visualization
+```
+
+For a larger manifest, the utility still loads one actual training batch by
+default; use `--num-samples 8` to limit the number drawn in figures. The batch
+metadata retains every item from that batch. `--batch-index 1` selects the next
+shuffled batch. Set the seed to reproduce the selected order and random
+transform realization. Random augmentation is part of the final model-input
+stage and can differ between seeds or runs.
+
+The output directory contains `raw_triplanar.png`,
+`preprocessed_triplanar.png`, `actual_training_batch.png`,
+`actual_training_batch_triplanar.png`, `raw_vs_preprocessed.png`,
+`raw_vs_final_batch.png`, `preprocessing_statistics.csv`,
+`batch_metadata.json`, and `pipeline_summary.txt`. Raw NIfTI plotting changes
+axis order/flips for closest-RAS display only; it does not resample or alter
+voxel values. Per-slice percentile windows affect display only, while the CSV
+reports unwindowed values.
+
 No second full-data value is fabricated when only one compatible baseline run
 exists. Retention is omitted when the compatibility checks cannot verify a
 295-patient/1,180-scan baseline.
